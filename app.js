@@ -375,6 +375,13 @@ function calcularTabla(zona) {
       else              { L.e++; V.e++; L.pts++; V.pts++; }
     });
 
+    // Sanciones: puntos descontados desde config.js
+    Object.entries(CONFIG.DESCUENTOS || {}).forEach(([equipo, puntos]) => {
+       if (filas[equipo]) {
+          filas[equipo].pts -= puntos;
+          filas[equipo].desc = puntos;
+       }
+  
   // Orden: puntos, diferencia de gol, goles a favor
   return Object.values(filas).sort((a, b) =>
     b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc) || b.gf - a.gf);
