@@ -218,7 +218,7 @@ const nombre = numero => CONFIG.EQUIPOS[numero];
 function dibujarProximoPartido() {
   const proximo = listaPartidos().find(p => p.zona === 0 && juegaMiEquipo(p) && !estado.R[p.clave]);
   $("#prox").innerHTML = proximo
-    ? `Próximo partido · Fecha ${proximo.fecha}<br><b>${nombre(proximo.local)} vs ${nombre(proximo.visitante)}</b>`
+    ? `Próximo partido · Fecha ${proximo.fecha} · Domingo 11 de Octubre - 13:00hs<br><b>${nombre(proximo.local)} vs ${nombre(proximo.visitante)}</b>`
     : `<b>Fase de grupos terminada</b><br>Copa con los mejores de ambas zonas`;
 }
 
