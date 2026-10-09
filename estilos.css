@@ -274,11 +274,6 @@ main { padding: 14px 16px; max-width: 1100px; margin: auto; }
 
 /* ---------- Tabla de posiciones ---------- */
 .card.tabla { max-width: 560px; overflow-x: auto; } /* scroll lateral si no entra */
-
-/* Las dos tablas de posiciones, una al lado de la otra (una debajo de la otra en tablet/celular) */
-.tablas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.tablas .card.tabla { max-width: none; }
-@media (max-width: 800px) { .tablas { grid-template-columns: 1fr; } }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th { background: var(--azul); color: var(--crema); padding: 5px; }
 td { padding: 5px; border-bottom: 1px solid var(--gris-suave); text-align: center; }
