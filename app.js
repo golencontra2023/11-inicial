@@ -425,6 +425,7 @@ function dibujarFixture() {
 
   $("#tp").innerHTML = `
     <div class="card tabla"><h2>Posiciones · Zona A</h2>${htmlTabla(0)}</div>
+    <div class="card tabla"><h2>Posiciones · Zona B</h2>${htmlTabla(1)}</div>
     ${htmlPublicar()}
     <p>Al terminar las 7 fechas, los mejores de cada zona juegan la Copa.</p>
     <div class="fx">${fechas}</div>`;
