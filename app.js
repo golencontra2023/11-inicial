@@ -215,6 +215,7 @@ function listaPartidos() {
 const juegaMiEquipo = p => p.local === CONFIG.MI_EQUIPO || p.visitante === CONFIG.MI_EQUIPO;
 const nombre = numero => CONFIG.EQUIPOS[numero];
 
+
 function dibujarProximoPartido() {
   const proximo = listaPartidos().find(p => p.zona === 0 && juegaMiEquipo(p) && !estado.R[p.clave]);
   $("#prox").innerHTML = proximo
