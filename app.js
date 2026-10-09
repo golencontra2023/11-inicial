@@ -375,14 +375,13 @@ function calcularTabla(zona) {
       else              { L.e++; V.e++; L.pts++; V.pts++; }
     });
 
-   // Sanciones: puntos descontados desde config.js
-  Object.entries(CONFIG.DESCUENTOS || {}).forEach(([equipo, puntos]) => {
-    if (filas[equipo]) {
-      filas[equipo].pts -= puntos;
-      filas[equipo].desc = puntos;
-    }
-  });
-
+        // Sanciones: puntos descontados desde config.js
+    Object.entries(CONFIG.DESCUENTOS || {}).forEach(([equipo, puntos]) => {
+       if (filas[equipo]) {
+          filas[equipo].pts -= puntos;
+          filas[equipo].desc = puntos;
+       }
+   
   // Orden: puntos, diferencia de gol, goles a favor
   return Object.values(filas).sort((a, b) =>
     b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc) || b.gf - a.gf);
@@ -424,8 +423,10 @@ function dibujarFixture() {
   }).join("");
 
   $("#tp").innerHTML = `
-    <div class="card tabla"><h2>Posiciones · Zona A</h2>${htmlTabla(0)}</div>
-    <div class="card tabla"><h2>Posiciones · Zona B</h2>${htmlTabla(1)}</div>
+    <div class="tablas">
+      <div class="card tabla"><h2>Posiciones · Zona A</h2>${htmlTabla(0)}</div>
+      <div class="card tabla"><h2>Posiciones · Zona B</h2>${htmlTabla(1)}</div>
+    </div>
     ${htmlPublicar()}
     <p>Al terminar las 7 fechas, los mejores de cada zona juegan la Copa.</p>
     <div class="fx">${fechas}</div>`;
