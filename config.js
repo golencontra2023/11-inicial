@@ -79,4 +79,9 @@ const CONFIG = {
     "3:8-4": [1, 2],      // F90 vs GOL EN CONTRA
     "3:2-3": [6, 0],      // MALVINAS vs TIMBA
   },
+
+  DESCUENTOS: {
+  4: 1,   // Equipo 4 - Gol en Contra: -1 punto (Por no pagar a tiempo una cuota)
+  },
+  
 };
