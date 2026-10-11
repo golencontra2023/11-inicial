@@ -18,6 +18,23 @@
   --cesped-2:      #339746;
   --linea-cancha:  #ffffffb0;
   --sombra:        0 2px 8px #14213d1f;
+
+  /* Colores que cambian con el modo claro / oscuro */
+  --superficie:    #ffffff;  /* fondo de tarjetas y botones */
+  --titulo:        #2453a3;  /* títulos, bordes y textos azules */
+  --verde:         #2e8b3e;
+}
+
+/* ---------- Modo oscuro (botón 🌙 / ☀️ del encabezado) ---------- */
+:root[data-tema="oscuro"] {
+  --fondo:         #0e1424;
+  --superficie:    #1a2340;
+  --gris-suave:    #26324f;
+  --texto:         #e7ebf5;
+  --titulo:        #8db4ff;
+  --resaltado:     #3b3318;
+  --sombra:        0 2px 8px #0009;
+  color-scheme: dark;
 }
 
 
@@ -56,14 +73,15 @@ button {
   cursor: pointer;
 }
 button:hover { filter: brightness(1.08); }
-button.sec { background: var(--blanco); border: 2px solid var(--azul); color: var(--azul); }
-button.sec.on { background: var(--azul); color: var(--crema); }
-button:focus-visible, input:focus-visible { outline: 3px solid var(--carmesi); outline-offset: 2px; }
+button:disabled { opacity: .6; cursor: wait; }
+button.sec { background: var(--superficie); border: 2px solid var(--titulo); color: var(--titulo); }
+button.sec.on { background: var(--azul); color: var(--crema); border-color: var(--azul); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--carmesi); outline-offset: 2px; }
 
 h2 {
   font: 800 24px 'Barlow Condensed';
   margin: 0 0 8px;
-  color: var(--azul);
+  color: var(--titulo);
   text-transform: uppercase;
 }
 
@@ -98,7 +116,11 @@ header small {
   margin-top: 4px;
 }
 .sp { flex: 1; }
+
+/* Los botones del encabezado se ven igual en modo claro y oscuro */
+header button.sec { background: var(--blanco); color: var(--azul); border-color: var(--azul); }
 #login { font-size: 20px; padding: 14px 24px; border-radius: 10px; }
+#tema  { font-size: 22px; line-height: 1; padding: 12px 14px; border-radius: 10px; }
 
 #msg { font-size: 13px; padding: 6px 16px; background: var(--resaltado); display: none; }
 
@@ -109,13 +131,18 @@ nav {
   gap: 6px;
   padding: 10px 16px 0;
   border-bottom: 3px solid var(--azul);
+  overflow-x: auto;              /* si no entran, se desplazan de costado */
+  scrollbar-width: none;
 }
+nav::-webkit-scrollbar { display: none; }
 nav button {
   background: var(--gris-suave);
-  color: var(--azul);
+  color: var(--titulo);
   border-radius: 8px 8px 0 0;
   font-size: 18px;
   padding: 10px 18px;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 nav button.on { background: var(--azul); color: var(--crema); }
 
@@ -127,7 +154,7 @@ main { padding: 14px 16px; max-width: 1100px; margin: auto; }
 @media (max-width: 800px) { .row { grid-template-columns: 1fr; } }
 
 .card {
-  background: var(--blanco);
+  background: var(--superficie);
   border-radius: 12px;
   padding: 12px;
   border-top: 4px solid var(--azul);
@@ -136,19 +163,23 @@ main { padding: 14px 16px; max-width: 1100px; margin: auto; }
 }
 .ayuda { font-size: 13px; margin: 8px 0 0; }
 #addb { margin-top: 8px; }
+.acciones { display: flex; justify-content: center; margin-top: 12px; }
 
 
 /* ---------- Barra de esquemas ---------- */
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 #esquemas { display: contents; }
-.bar input {
+.bar input, .bar select {
   width: 110px;
   padding: 7px;
-  border: 2px solid var(--azul);
+  border: 2px solid var(--titulo);
   border-radius: 8px;
   text-align: center;
   font-weight: 600;
+  background: var(--superficie);
+  color: var(--texto);
 }
+.bar select { width: auto; min-width: 130px; }
 
 
 /* ---------- Cancha ---------- */
@@ -239,7 +270,7 @@ main { padding: 14px 16px; max-width: 1100px; margin: auto; }
   align-items: center;
   gap: 8px;
   background: var(--gris-suave);
-  border: 2px solid var(--azul);
+  border: 2px solid var(--titulo);
   border-radius: 30px;
   padding: 3px 12px 3px 3px;
   cursor: grab;
@@ -272,13 +303,22 @@ main { padding: 14px 16px; max-width: 1100px; margin: auto; }
 .prox b { color: var(--dorado); font: 800 24px 'Barlow Condensed'; }
 
 
-/* ---------- Tabla de posiciones ---------- */
+/* ---------- Tablas de posiciones ---------- */
 .card.tabla { max-width: 560px; overflow-x: auto; } /* scroll lateral si no entra */
+.tablas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 14px;
+}
+.tablas .card.tabla { max-width: none; }
+
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th { background: var(--azul); color: var(--crema); padding: 5px; }
 td { padding: 5px; border-bottom: 1px solid var(--gris-suave); text-align: center; }
 th.n, td.n { text-align: left; }
 tr.me td { background: var(--resaltado); font-weight: 600; }
+/* los que clasifican a la Copa de Oro llevan una marca dorada a la izquierda */
+tr.cl td:first-child { box-shadow: inset 4px 0 0 var(--dorado); }
 
 
 /* ---------- Fixture ---------- */
@@ -295,8 +335,75 @@ tr.me td { background: var(--resaltado); font-weight: 600; }
 .m span:first-child { text-align: right; }
 .m span:last-child  { text-align: left; }
 .m.me { background: var(--resaltado); border-radius: 6px; padding: 5px; }
-.m input { width: 34px; padding: 3px; text-align: center; border: 1px solid var(--azul); border-radius: 5px; }
-.sc { font-weight: 800; min-width: 50px; text-align: center; color: var(--azul-oscuro); }
+.m input {
+  width: 34px; padding: 3px; text-align: center;
+  border: 1px solid var(--titulo); border-radius: 5px;
+  background: var(--superficie); color: var(--texto);
+}
+.sc { font-weight: 800; min-width: 50px; text-align: center; color: var(--titulo); }
+
+
+/* ---------- Convocatoria ---------- */
+.res { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.chip {
+  padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 14px;
+  background: var(--gris-suave);
+}
+.chip.ok   { background: var(--verde); color: #fff; }
+.chip.no   { background: var(--carmesi); color: #fff; }
+.lista-conv { font-size: 14px; margin: 4px 0; }
+
+.jug {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--gris-suave);
+}
+.jug i {
+  font: 800 16px 'Barlow Condensed';
+  font-style: normal;
+  width: 34px; height: 34px; flex: none;
+  border-radius: 50%;
+  background: var(--azul); color: var(--crema);
+  display: grid; place-items: center;
+}
+.jug .nom { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jug .nom small { font-weight: 400; opacity: .7; margin-left: 6px; }
+.jug button { padding: 6px 12px; font-size: 14px; }
+button.sec.si.on { background: var(--verde); border-color: var(--verde); color: #fff; }
+button.sec.no.on { background: var(--carmesi); border-color: var(--carmesi); color: #fff; }
+
+
+/* ---------- Copa de Oro ---------- */
+.llaves { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; margin-bottom: 10px; }
+.llave small { display: block; font-weight: 600; opacity: .8; margin-bottom: 2px; }
+.llave select {
+  width: 100%; margin: 4px 0; padding: 4px;
+  border: 1px solid var(--titulo); border-radius: 6px;
+  background: var(--superficie); color: var(--texto);
+}
+.pen { font-size: 13px; margin: 2px 0 6px; }
+.etapa { font: 800 18px 'Barlow Condensed'; text-transform: uppercase; color: var(--titulo); margin: 12px 0 6px; }
+.tbd  { opacity: .65; }
+.prov { color: var(--dorado); font-weight: 800; }
+.campeon {
+  background: var(--azul-oscuro); color: var(--crema);
+  border-left: 6px solid var(--dorado); border-radius: 12px;
+  padding: 10px 14px; margin-bottom: 12px;
+  font: 800 24px 'Barlow Condensed'; text-transform: uppercase;
+}
+
+
+/* ---------- Calculadora de clasificación ---------- */
+.calc .estado { font-weight: 600; margin: 6px 0; }
+.datos { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.datos span { background: var(--gris-suave); border-radius: 8px; padding: 5px 10px; font-size: 14px; }
+.datos b { color: var(--titulo); }
+.prob { display: grid; grid-template-columns: minmax(80px, 1.2fr) 2fr 48px; gap: 8px; align-items: center; padding: 4px 0; font-size: 14px; }
+.prob.me { background: var(--resaltado); border-radius: 6px; padding: 4px 6px; }
+.prob b { text-align: right; }
+.barra { height: 10px; background: var(--gris-suave); border-radius: 6px; overflow: hidden; }
+.barra span { display: block; height: 100%; background: var(--dorado); }
+.calc details { margin-top: 10px; }
+.calc summary { cursor: pointer; color: var(--titulo); font-weight: 600; }
 
 
 /* =====================================================================
@@ -333,15 +440,16 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   header img { width: 58px; height: 58px; border-width: 2px; }
   header > div:nth-child(2) { flex: 1; min-width: 0; }
   .sp { display: none; }
+  #tema { padding: 10px 12px; }
   #login {
     width: 100%;          /* botón de técnico en su propia fila */
     font-size: 16px;
     padding: 10px 16px;
   }
 
-  /* Pestañas: ocupan todo el ancho, mitad y mitad */
+  /* Pestañas: si no entran, se desplazan de costado */
   nav { padding: 8px 10px 0; gap: 4px; }
-  nav button { flex: 1; font-size: 15px; padding: 10px 8px; }
+  nav button { font-size: 14px; padding: 10px 12px; }
 
   main { padding: 10px; }
   .row { gap: 10px; }
@@ -369,13 +477,21 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .m { font-size: 13px; gap: 4px; }
   .m input { width: 38px; font-size: 16px; padding: 4px 2px; }
   .sc { min-width: 0; }
+
+  /* Convocatoria */
+  .jug { gap: 6px; }
+  .jug button { padding: 6px 8px; font-size: 13px; }
+  .jug .nom small { display: none; }
+
+  /* Calculadora */
+  .prob { grid-template-columns: minmax(70px, 1.3fr) 1.5fr 44px; font-size: 13px; }
 }
 
 /* ---------- Celular chico (hasta 380px) ---------- */
 @media (max-width: 380px) {
   h1 { font-size: 30px; }
   header small { font-size: 13px; }
-  nav button { font-size: 14px; }
+  nav button { font-size: 13px; padding: 10px; }
   .m { font-size: 12px; }
 }
 
@@ -393,14 +509,16 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* ---------- Publicar resultados (solo técnico) ---------- */
 .publicar { max-width: 560px; }
-.publicar summary { cursor: pointer; color: var(--azul); }
+.publicar summary { cursor: pointer; color: var(--titulo); }
 .publicar textarea {
   width: 100%;
   font: 12px/1.4 ui-monospace, Consolas, monospace;
-  border: 1px solid var(--azul);
+  border: 1px solid var(--titulo);
   border-radius: 6px;
   padding: 6px;
   margin: 6px 0;
   white-space: pre;
   overflow-x: auto;
+  background: var(--superficie);
+  color: var(--texto);
 }
