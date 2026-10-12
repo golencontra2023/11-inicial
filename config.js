@@ -8,10 +8,14 @@ const CONFIG = {
   // ---------- Guardado compartido ----------
   // URL de Firebase Realtime Database (ver README).
   // Si queda vacío, los cambios se guardan solo en este navegador.
-  DB_URL: "https://formaciontitular-1b05e-default-rtdb.firebaseio.com",
+  // DB_URL: "https://formaciontitular-1b05e-default-rtdb.firebaseio.com",
+
+  SUPABASE_URL: "https://jnlixortdachoncphgsm.supabase.co",
+  SUPABASE_KEY: "sb_publishable_HBAW8VH6jy9Wz6inV0WLfw_wKyCC2kJ", 
+  EQUIPO_SLUG: "gol-en-contra",
 
   // Clave del técnico para editar el tablero. ¡Cambiala!
-  PIN: "gec2026",
+  // PIN: "gec2026", //borrar
 
   // Cada cuántos milisegundos se buscan cambios en la base (5000 = 5 s).
   REFRESCO_MS: 5000,

@@ -49,24 +49,31 @@ function mostrarMensaje(texto) {
 }
 
 
-/* ---------- 2. Estado ----------
-   Estructura (los nombres cortos se mantienen porque ya están guardados
-   en Firebase; cambiarlos borraría lo cargado):
+/* ---------- 2. Estado & Conexión ----------
+   Estructura:
      fmt → esquema actual, ej. "4-3-3"
      P   → jugadores { id: { n: número, name: nombre } }
      S   → titulares en cancha [ { p: idJugador, x: %, y: % } ]  (S[0] = arquero)
      B   → suplentes [ idJugador, ... ]
      R   → resultados { "fecha:local-visitante": [golesLocal, golesVisitante] }
-           (la Copa usa claves "copa:C1", "copa:S1", "copa:F"...)
      ts  → momento del último guardado
-
-   La convocatoria (voy / no voy) se guarda APARTE, en /asistencia de Firebase,
-   para no tocar nada de lo anterior.
 */
 
+const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+let equipoId = null, tecnicoId = null;
+let esTecnico = false;
 let estado;
-let esTecnico   = sessionStorage.getItem(CLAVE_LOCAL) === CONFIG.PIN;
 let arrastrando = false; // mientras se arrastra no se aceptan cambios remotos
+
+async function iniciar() {
+  const { data: eq, error } = await db.from("equipos")
+    .select("id, tecnico_id").eq("slug", CONFIG.EQUIPO_SLUG).single();
+  if (error) return mostrarMensaje("No se pudo conectar con la base.");
+  equipoId = eq.id; 
+  tecnicoId = eq.tecnico_id;
+  const { data: { session } } = await db.auth.getSession();
+  esTecnico = !!session && session.user.id === tecnicoId;   
+}
 
 function estadoInicial() {
   const jugadores = {};
@@ -85,10 +92,6 @@ function estadoInicial() {
   return nuevo;
 }
 
-// Completa campos que podrían faltar en datos viejos.
-// Los resultados escritos en config.js SIEMPRE se aplican encima de lo guardado:
-// así, al hacer push a GitHub, todos ven los resultados nuevos aunque tengan
-// una versión vieja guardada en el navegador.
 function completar(datos) {
   datos.B = datos.B || [];
   datos.R = { ...(datos.R || {}), ...CONFIG.RESULTADOS_INICIALES };
@@ -123,11 +126,7 @@ function aplicarEsquema(datos, esquema) {
   return true;
 }
 
-
 /* ---------- 4. Guardado ---------- */
-
-const urlBase     = () => CONFIG.DB_URL.replace(/\/$/, "");
-const urlTablero  = () => urlBase() + "/tablero.json";
 
 function cargarLocal() {
   try {
@@ -136,22 +135,17 @@ function cargarLocal() {
   if (!estado) estado = estadoInicial();
 }
 
-// Trae la versión de Firebase si es más nueva que la local
 async function traerDelServidor() {
-  // No se pisa la pantalla mientras se arrastra o se escribe un resultado
   const escribiendo = document.activeElement && document.activeElement.matches("#tp input, #tc input, #tc select");
-  if (!CONFIG.DB_URL || arrastrando || escribiendo) return;
-  try {
-    const remoto = await (await fetch(urlTablero())).json();
-    if (remoto && remoto.ts > estado.ts) {
-      estado = completar(remoto);
-      localStorage.setItem(CLAVE_LOCAL, JSON.stringify(estado));
-      dibujar();
-    } else if (!remoto && esTecnico) {
-      guardar(); // base vacía: el técnico sube la versión local
-    }
-  } catch (e) {
-    mostrarMensaje("Sin conexión: mostrando la última versión guardada.");
+  if (!equipoId || arrastrando || escribiendo) return;
+  const { data, error } = await db.from("tableros").select("datos, ts").eq("equipo_id", equipoId).maybeSingle();
+  if (error) return mostrarMensaje("Sin conexión: mostrando la última versión guardada.");
+  if (data && data.ts > estado.ts) {
+    estado = completar(data.datos);
+    localStorage.setItem(CLAVE_LOCAL, JSON.stringify(estado));
+    dibujar();
+  } else if (!data && esTecnico) {
+      guardar();
   }
 }
 
@@ -159,15 +153,10 @@ async function guardar() {
   estado.ts = Date.now();
   localStorage.setItem(CLAVE_LOCAL, JSON.stringify(estado));
   dibujar();
-  if (!CONFIG.DB_URL) return;
-  try {
-    await fetch(urlTablero(), { method: "PUT", body: JSON.stringify(estado) });
-    mostrarMensaje("");
-  } catch (e) {
-    mostrarMensaje("No se pudo guardar en línea. Revisá la conexión.");
-  }
+  if (!equipoId || !esTecnico) return;
+  const { error } = await db.from("tableros").upsert({ equipo_id: equipoId, datos: estado, ts: estado.ts });
+  mostrarMensaje(error ? "No se pudo guardar en línea. Revisá la conexión." : "");
 }
-
 
 /* ---------- 5. Dibujo de la pantalla ---------- */
 
@@ -526,16 +515,12 @@ function htmlPublicar() {
   </details>`;
 }
 
+/* ---------- 10. Convocatoria (voy / no voy) ---------- */
 
-/* ---------- 10. Convocatoria (voy / no voy) ----------
-   Se guarda en Firebase en  /asistencia/f<fecha>/<idJugador>  con "v" (voy) o "n" (no voy).
-   Cada toque escribe SOLO ese casillero, así nadie pisa los datos de los demás
-   ni la formación. Cualquiera puede marcar, no hace falta la clave del técnico. */
-
-let asistencia = {};        // { "f4": { p3: "v", p7: "n" } }
-let asistCambios = 0;       // cuenta los cambios locales (evita que una lectura vieja los pise)
-let asistPendientes = 0;    // escrituras en vuelo
-let fechaConv = null;       // fecha elegida en el selector (null = la próxima)
+let asistencia = {};
+let asistCambios = 0;
+let asistPendientes = 0;
+let fechaConv = null;
 
 try { asistencia = JSON.parse(localStorage.getItem(CLAVE_ASIST)) || {}; } catch (e) { asistencia = {}; }
 
@@ -543,7 +528,6 @@ const guardarAsistLocal = () => localStorage.setItem(CLAVE_ASIST, JSON.stringify
 const claveFecha = fecha => "f" + fecha;
 const respuestaDe = (fecha, id) => (asistencia[claveFecha(fecha)] || {})[id] || null;
 
-// Próxima fecha pendiente de nuestro equipo (o la última si ya terminó)
 function proximaFecha() {
   const p = listaPartidos().find(p => juegaMiEquipo(p) && !estado.R[p.clave]);
   return p ? p.fecha : CONFIG.FIXTURE.length;
@@ -551,7 +535,7 @@ function proximaFecha() {
 
 async function marcarAsistencia(fecha, id, valor) {
   const kf = claveFecha(fecha);
-  const nuevo = respuestaDe(fecha, id) === valor ? null : valor;   // tocar de nuevo = borrar respuesta
+  const nuevo = respuestaDe(fecha, id) === valor ? null : valor;
 
   asistencia[kf] = asistencia[kf] || {};
   if (nuevo) asistencia[kf][id] = nuevo; else delete asistencia[kf][id];
@@ -559,14 +543,14 @@ async function marcarAsistencia(fecha, id, valor) {
   guardarAsistLocal();
   dibujarConvocatoria();
 
-  if (!CONFIG.DB_URL) return;
+  if (!equipoId) return;
   asistPendientes++;
   try {
-    const url = `${urlBase()}/asistencia/${kf}/${id}.json`;
-    const resp = await fetch(url, nuevo
-      ? { method: "PUT", body: JSON.stringify(nuevo) }
-      : { method: "DELETE" });
-    if (!resp.ok) throw new Error(resp.status);
+    const { error } = nuevo  
+      ? await db.from("asistencia").upsert({ equipo_id: equipoId, fecha, jugador_id: id, valor: nuevo })  
+      : await db.from("asistencia").delete().match({ equipo_id: equipoId, fecha, jugador_id: id });
+    
+    if (error) throw error;
     mostrarMensaje("");
   } catch (e) {
     mostrarMensaje("No se pudo guardar la asistencia en línea. Revisá la conexión.");
@@ -576,24 +560,24 @@ async function marcarAsistencia(fecha, id, valor) {
 }
 
 async function traerAsistencia() {
-  if (!CONFIG.DB_URL) return;
-  const cambiosAntes = asistCambios;
-  try {
-    const remoto = (await (await fetch(urlBase() + "/asistencia.json")).json()) || {};
-    if (cambiosAntes !== asistCambios || asistPendientes > 0) return;   // hubo un toque mientras tanto
+    if (!equipoId) return;
+    const { data, error } = await db.from("asistencia").select("fecha, jugador_id, valor").eq("equipo_id", equipoId);
+    if (error) return;
+    
+    const remoto = {};
+    data.forEach(r => (remoto["f" + r.fecha] ??= {})[r.jugador_id] = r.valor);
+    
     if (JSON.stringify(remoto) !== JSON.stringify(asistencia)) {
-      asistencia = remoto;
-      guardarAsistLocal();
-      if (!$("#tv").hidden) dibujarConvocatoria();
+        asistencia = remoto;
+        guardarAsistLocal();
+        if (!$("#tv").hidden) dibujarConvocatoria();
     }
-  } catch (e) { /* sin conexión: se sigue con lo guardado */ }
 }
 
 function dibujarConvocatoria() {
   const fecha = fechaConv ?? proximaFecha();
   const partido = listaPartidos().find(p => p.fecha === fecha && juegaMiEquipo(p));
 
-  // Todos los jugadores (titulares y suplentes), ordenados por número de camiseta
   const titulares = new Set(estado.S.map(s => s.p));
   const ids = [...estado.S.map(s => s.p), ...estado.B]
     .filter((id, i, arr) => estado.P[id] && arr.indexOf(id) === i)
@@ -628,7 +612,7 @@ function dibujarConvocatoria() {
       <h2>Convocatoria</h2>
       <div class="bar"><label for="selFecha">Fecha:</label><select id="selFecha">${opciones}</select></div>
       <div class="prox">${partido
-        ? `Fecha ${fecha}<br><b>${nombre(partido.local)} vs ${nombre(partido.visitante)}</b>`
+        ? `Fecha ${fecha}<br><b>${nombre(partido.local)} vs${nombre(partido.visitante)}</b>`
         : `Fecha ${fecha}<br><b>Descansamos esta fecha</b>`}</div>
       <div class="res">
         <span class="chip ok">✅ Van: ${van.length}</span>
@@ -1184,36 +1168,35 @@ $("#tema").onclick = () => {
 $("#addb").onclick = agregarSuplente;
 $("#compartir").onclick = compartirFormacion;
 
-// Botones de esquema rápido (se crean en dibujarEsquemas)
 $("#esquemas").onclick = e => {
   const boton = e.target.closest("[data-f]");
   if (boton && aplicarEsquema(estado, boton.dataset.f)) guardar();
 };
 
-// Esquema manual
 $("#fgo").onclick = () => {
   if (aplicarEsquema(estado, $("#fin").value.trim())) guardar();
   else alert("Los números deben sumar 10 jugadores de campo. Ejemplo: 4-4-2");
 };
 
-// Entrar / salir del modo técnico
-$("#login").onclick = () => {
+$("#login").onclick = async () => {
   if (esTecnico) {
+    await db.auth.signOut(); 
     esTecnico = false;
-    sessionStorage.removeItem(CLAVE_LOCAL);
   } else {
-    const clave = prompt("Clave del técnico:");
-    if (clave === CONFIG.PIN) {
-      esTecnico = true;
-      sessionStorage.setItem(CLAVE_LOCAL, CONFIG.PIN);
-    } else if (clave !== null) {
-      alert("Clave incorrecta");
-    }
+    const email = prompt("Email del técnico:"); 
+    if (!email) return;
+    
+    const password = prompt("Contraseña:");     
+    if (!password) return;
+    
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    if (error) return alert("Email o contraseña incorrectos");
+    
+    esTecnico = data.user.id === tecnicoId;
   }
   dibujar();
 };
 
-// Convocatoria: botones Voy / No voy y selector de fecha
 $("#tv").onclick = e => {
   const boton = e.target.closest("[data-as]");
   if (boton) marcarAsistencia(Number(boton.dataset.f), boton.dataset.id, boton.dataset.as);
@@ -1225,10 +1208,9 @@ $("#tv").onchange = e => {
   }
 };
 
-// Pestañas
 const PESTANAS = { f: "#tf", v: "#tv", p: "#tp", c: "#tc" };
-$$("nav button").forEach(boton => boton.onclick = () => {
-  $$("nav button").forEach(x => x.classList.toggle("on", x === boton));
+$$("nav button").forEach(boton => boton.onclick = () => { $$
+("nav button").forEach(x => x.classList.toggle("on", x === boton));
   Object.entries(PESTANAS).forEach(([clave, selector]) => $(selector).hidden = clave !== boton.dataset.t);
   dibujarPestanaActiva();
 });
@@ -1236,6 +1218,11 @@ $$("nav button").forEach(boton => boton.onclick = () => {
 aplicarTema(document.documentElement.dataset.tema || "claro");
 cargarLocal();
 dibujar();
-traerDelServidor();
-traerAsistencia();
-setInterval(() => { traerDelServidor(); traerAsistencia(); }, CONFIG.REFRESCO_MS);
+
+// Arranque
+(async () => {
+  await iniciar();
+  await traerDelServidor();
+  await traerAsistencia();
+  setInterval(() => { traerDelServidor(); traerAsistencia(); }, CONFIG.REFRESCO_MS);
+})();
