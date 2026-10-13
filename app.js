@@ -232,7 +232,7 @@ const zonaMia = () => CONFIG.MI_EQUIPO <= 8 ? 0 : 1;
 function dibujarProximoPartido() {
   const proximo = listaPartidos().find(p => p.zona === 0 && juegaMiEquipo(p) && !estado.R[p.clave]);
   $("#prox").innerHTML = proximo
-    ? `Fecha ${proximo.fecha} - Domingo 11 de Octubre - 13:30Hs<br><b>${nombre(proximo.local)} vs ${nombre(proximo.visitante)}</b>`
+    ? `Fecha ${proximo.fecha} - Sábado 24 de Octubre - Horario a confirmar<br><b>${nombre(proximo.local)} vs ${nombre(proximo.visitante)}</b>`
     : `<b>Fase de grupos terminada</b><br>Copa con los mejores de ambas zonas`;
 }
 
@@ -606,13 +606,13 @@ function dibujarConvocatoria() {
       <button class="sec no ${r === "n" ? "on" : ""}" data-as="n" data-id="${id}" data-f="${fecha}" aria-pressed="${r === "n"}">❌ No voy</button>
     </div>`;
   }).join("");
-
+  //CONVOCATORIA TEXTO
   $("#tv").innerHTML = `
     <div class="card">
       <h2>Convocatoria</h2>
       <div class="bar"><label for="selFecha">Fecha:</label><select id="selFecha">${opciones}</select></div>
       <div class="prox">${partido
-        ? `Fecha ${fecha}<br><b>${nombre(partido.local)} vs${nombre(partido.visitante)}</b>`
+        ? `Fecha ${fecha}<br><b>${nombre(partido.local)} vs ${nombre(partido.visitante)}</b>`
         : `Fecha ${fecha}<br><b>Descansamos esta fecha</b>`}</div>
       <div class="res">
         <span class="chip ok">✅ Van: ${van.length}</span>
