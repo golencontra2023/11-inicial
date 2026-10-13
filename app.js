@@ -569,18 +569,19 @@ async function marcarAsistencia(fecha, id, valor) {
 }
 
 async function traerAsistencia() {
-    if (!equipoId) return;
-    const { data, error } = await db.from("asistencia").select("fecha, jugador_id, valor").eq("equipo_id", equipoId);
-    if (error) return;
-    
-    const remoto = {};
-    data.forEach(r => (remoto["f" + r.fecha] ??= {})[r.jugador_id] = r.valor);
-    
-    if (JSON.stringify(remoto) !== JSON.stringify(asistencia)) {
-        asistencia = remoto;
-        guardarAsistLocal();
-        if (!$("#tv").hidden) dibujarConvocatoria();
-    }
+  if (!equipoId) return;
+  const cambiosAntes = asistCambios;
+  const { data, error } = await db.from("asistencia").select("fecha, jugador_id, valor").eq("equipo_id", equipoId);
+  if (error || cambiosAntes !== asistCambios || asistPendientes > 0) return;
+
+  const remoto = {};
+  data.forEach(r => (remoto["f" + r.fecha] ??= {})[r.jugador_id] = r.valor);
+
+  if (JSON.stringify(remoto) !== JSON.stringify(asistencia)) {
+    asistencia = remoto;
+    guardarAsistLocal();
+    if (!$("#tv").hidden) dibujarConvocatoria();
+  }
 }
 
 function dibujarConvocatoria() {
@@ -1187,23 +1188,50 @@ $("#fgo").onclick = () => {
   else alert("Los números deben sumar 10 jugadores de campo. Ejemplo: 4-4-2");
 };
 
+function pedirCredenciales() {
+  return new Promise(resolver => {
+    const emailInicial = CONFIG.TECNICO_EMAIL || localStorage.getItem("gec-email") || "";
+    const d = document.createElement("dialog");
+    d.className = "login";
+    d.innerHTML = `
+      <form method="dialog">
+        <h2>Entrar como técnico</h2>
+        <label>Email <input name="email" type="email" required autocomplete="username" value="${escaparHTML(emailInicial)}"></label>
+        <label>Contraseña <input name="password" type="password" required autocomplete="current-password"></label>
+        <div class="acciones">
+          <button type="button" class="sec" data-cancelar>Cancelar</button>
+          <button type="submit">Entrar</button>
+        </div>
+      </form>`;
+    document.body.appendChild(d);
+    const form = d.querySelector("form");
+    const cerrar = valor => { d.close(); d.remove(); resolver(valor); };
+    d.querySelector("[data-cancelar]").onclick = () => cerrar(null);
+    d.addEventListener("cancel", () => cerrar(null));
+    form.onsubmit = e => {
+      e.preventDefault();
+      cerrar({ email: form.elements.email.value.trim(), password: form.elements.password.value });
+    };
+    d.showModal();
+    (emailInicial ? form.elements.password : form.elements.email).focus();
+  });
+}
+
 $("#login").onclick = async () => {
   if (esTecnico) {
-    await db.auth.signOut(); 
-    esTecnico = false;
-  } else {
-    const email = prompt("Email del técnico:"); 
-    if (!email) return;
-    
-    const password = prompt("Contraseña:");     
-    if (!password) return;
-    
-    const { data, error } = await db.auth.signInWithPassword({ email, password });
-    if (error) return alert("Email o contraseña incorrectos");
-    
-    esTecnico = data.user.id === tecnicoId;
+    try { await db.auth.signOut(); } catch (e) {}
+    return;                                    // onAuthStateChange apaga el modo técnico
   }
-  dibujar();
+  const cred = await pedirCredenciales();
+  if (!cred) return;
+  const { data, error } = await db.auth.signInWithPassword(cred);
+  if (error) return alert("No se pudo iniciar sesión: " + error.message);
+  aplicarSesion(data.session);
+  if (!esTecnico) {
+    await db.auth.signOut();
+    return alert("Esa cuenta no es la del técnico de este equipo.");
+  }
+  localStorage.setItem("gec-email", cred.email);
 };
 
 $("#tv").onclick = e => {
@@ -1218,15 +1246,11 @@ $("#tv").onchange = e => {
 };
 
 const PESTANAS = { f: "#tf", v: "#tv", p: "#tp", c: "#tc" };
-$$("nav button").forEach(boton => boton.onclick = () => { $$
-("nav button").forEach(x => x.classList.toggle("on", x === boton));
+$$("nav button").forEach(boton => boton.onclick = () => {
+  $$("nav button").forEach(x => x.classList.toggle("on", x === boton));
   Object.entries(PESTANAS).forEach(([clave, selector]) => $(selector).hidden = clave !== boton.dataset.t);
   dibujarPestanaActiva();
 });
-
-aplicarTema(document.documentElement.dataset.tema || "claro");
-cargarLocal();
-dibujar();
 
 // Arranque
 aplicarTema(document.documentElement.dataset.tema || "claro");
