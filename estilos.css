@@ -522,3 +522,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   background: var(--superficie);
   color: var(--texto);
 }
+/*CUADRO LOGIN TECNICO*/
+dialog.login { border: 0; border-radius: 12px; padding: 16px; background: var(--superficie); color: var(--texto); box-shadow: var(--sombra); width: min(92vw, 360px); }
+dialog.login::backdrop { background: #0008; }
+dialog.login h2 { margin-bottom: 10px; }
+dialog.login label { display: block; font-weight: 600; margin-bottom: 8px; }
+dialog.login input { display: block; width: 100%; margin-top: 4px; padding: 8px; border: 2px solid var(--titulo); border-radius: 8px; background: var(--superficie); color: var(--texto); font-size: 16px; }
