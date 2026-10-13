@@ -11,7 +11,7 @@ const CONFIG = {
   // DB_URL: "https://formaciontitular-1b05e-default-rtdb.firebaseio.com",
 
   SUPABASE_URL: "https://jnlixortdachoncphgsm.supabase.co",
-  SUPABASE_KEY: "sb_publishable_HBAW8VH6jy9Wz6inV0WLfw_wKyCC2kJ", 
+  SUPABASE_KEY: "sb_secret_wRU-s-20DezYoBN2xYIqPg_fTbGvUDk", 
   EQUIPO_SLUG: "gol-en-contra",
 
   // Clave del técnico para editar el tablero. ¡Cambiala!
