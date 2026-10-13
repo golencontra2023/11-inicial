@@ -65,14 +65,23 @@ let esTecnico = false;
 let estado;
 let arrastrando = false; // mientras se arrastra no se aceptan cambios remotos
 
+function aplicarSesion(sesion) {
+  const ahora = !!sesion && !!tecnicoId && sesion.user.id === tecnicoId;
+  if (ahora !== esTecnico) { esTecnico = ahora; dibujar(); }
+}
+
 async function iniciar() {
   const { data: eq, error } = await db.from("equipos")
     .select("id, tecnico_id").eq("slug", CONFIG.EQUIPO_SLUG).single();
-  if (error) return mostrarMensaje("No se pudo conectar con la base.");
-  equipoId = eq.id; 
-  tecnicoId = eq.tecnico_id;
+  if (error) {
+    console.error("Supabase:", error);
+    return mostrarMensaje("No se pudo conectar con la base (" + (error.code || error.message) + ").");
+  }
+  equipoId = eq.id; tecnicoId = eq.tecnico_id;
+
   const { data: { session } } = await db.auth.getSession();
-  esTecnico = !!session && session.user.id === tecnicoId;   
+  aplicarSesion(session);
+  db.auth.onAuthStateChange((_evento, sesion) => aplicarSesion(sesion));
 }
 
 function estadoInicial() {
@@ -1220,9 +1229,11 @@ cargarLocal();
 dibujar();
 
 // Arranque
+aplicarTema(document.documentElement.dataset.tema || "claro");
+cargarLocal();
+dibujar();
 (async () => {
-  await iniciar();
-  await traerDelServidor();
-  await traerAsistencia();
+  if (db) await iniciar();
+  await Promise.all([traerDelServidor(), traerAsistencia()]);
   setInterval(() => { traerDelServidor(); traerAsistencia(); }, CONFIG.REFRESCO_MS);
 })();
