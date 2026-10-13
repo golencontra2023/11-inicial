@@ -1,12 +1,12 @@
 /* =====================================================================
    LÓGICA DEL TABLERO – Gol en Contra
-   La configuración (equipos, fixture, clave, Firebase) está en config.js.
+   La configuración (equipos, fixture, clave) está en config.js.
 
    Índice
      1. Utilidades
      2. Estado (datos del tablero)
      3. Esquemas tácticos
-     4. Guardado (navegador + Firebase)
+     4. Guardado
      5. Dibujo de la pantalla
      6. Partidos y próximo rival
      7. Arrastrar y soltar jugadores
