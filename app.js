@@ -1199,7 +1199,7 @@ function pedirCredenciales() {
         <label>Email <input name="email" type="email" required autocomplete="username" value="${escaparHTML(emailInicial)}"></label>
         <label>Contraseña <input name="password" type="password" required autocomplete="current-password"></label>
         <div class="acciones">
-          <button type="button" class="sec" data-cancelar>Cancelar</button>
+          <button type="button" class="sec2" data-cancelar>Cancelar</button>
           <button type="submit">Entrar</button>
         </div>
       </form>`;

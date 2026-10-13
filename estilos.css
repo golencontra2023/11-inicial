@@ -72,9 +72,11 @@ button {
   font-weight: 600;
   cursor: pointer;
 }
+
 button:hover { filter: brightness(1.08); }
 button:disabled { opacity: .6; cursor: wait; }
 button.sec { background: var(--superficie); border: 2px solid var(--titulo); color: var(--titulo); }
+button.sec2 { background: var(--superficie); border: 2px solid var(--titulo); color: var(--titulo);margin-right: 15px; }
 button.sec.on { background: var(--azul); color: var(--crema); border-color: var(--azul); }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--carmesi); outline-offset: 2px; }
 
@@ -526,5 +528,5 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 dialog.login { border: 0; border-radius: 12px; padding: 16px; background: var(--superficie); color: var(--texto); box-shadow: var(--sombra); width: min(92vw, 360px); }
 dialog.login::backdrop { background: #0008; }
 dialog.login h2 { margin-bottom: 10px; }
-dialog.login label { display: block; font-weight: 600; margin-bottom: 8px; }
+dialog.login label { display: block; font-weight: 600; margin-bottom: 15px; }
 dialog.login input { display: block; width: 100%; margin-top: 4px; padding: 8px; border: 2px solid var(--titulo); border-radius: 8px; background: var(--superficie); color: var(--texto); font-size: 16px; }
