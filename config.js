@@ -8,6 +8,7 @@ const CONFIG = {
   SUPABASE_KEY: "sb_publishable_HBAW8VH6jy9Wz6inV0WLfw_wKyCC2kJ", 
   EQUIPO_SLUG: "gol-en-contra",
 
+  TECNICO_EMAIL: "gecgolencontra2023@gmail.com",
   // Cada cuántos milisegundos se buscan cambios en la base (5000 = 5 s).
   REFRESCO_MS: 5000,
 
