@@ -85,24 +85,22 @@ async function iniciar() {
 }
 
 function estadoInicial() {
-  const jugadores = {};
-  for (let i = 0; i < 16; i++) {
-    jugadores["p" + i] = { n: i + 1, name: "Jugador " + (i + 1) };
-  }
+  // ...
   const nuevo = {
     fmt: CONFIG.ESQUEMA_INICIAL,
     P: jugadores,
     S: Array.from({ length: 11 }, (_, i) => ({ p: "p" + i, x: 50, y: 50 })),
     B: ["p11", "p12", "p13", "p14", "p15"],
     R: { ...CONFIG.RESULTADOS_INICIALES },
+    H: {},   // <-- NUEVO: día y hora de cada partido
     ts: 1,
   };
-  aplicarEsquema(nuevo, nuevo.fmt);
-  return nuevo;
+  // ...
 }
 
 function completar(datos) {
   datos.B = datos.B || [];
+  datos.H = datos.H || {};   // <-- NUEVO
   datos.R = { ...(datos.R || {}), ...CONFIG.RESULTADOS_INICIALES };
   return datos;
 }
@@ -240,9 +238,39 @@ const zonaMia = () => CONFIG.MI_EQUIPO <= 8 ? 0 : 1;
 
 function dibujarProximoPartido() {
   const proximo = listaPartidos().find(p => p.zona === 0 && juegaMiEquipo(p) && !estado.R[p.clave]);
-  $("#prox").innerHTML = proximo
-    ? `Fecha ${proximo.fecha} - Domingo 1 de Octubre - 11:40 HS<br><b>${nombre(proximo.local)} vs ${nombre(proximo.visitante)}</b>`
-    : `<b>Fase de grupos terminada</b><br>Copa con los mejores de ambas zonas`;
+
+  if (!proximo) {
+    $("#prox").innerHTML = `<b>Fase de grupos terminada</b><br>Copa con los mejores de ambas zonas`;
+    return;
+  }
+
+  // Si el técnico está escribiendo, no se redibuja (si no, el refresco cada 5 s le borraría lo que tipea)
+  if (document.activeElement && document.activeElement.id === "cuando") return;
+
+  const cuando = (estado.H && estado.H[proximo.clave]) || "Día y horario a confirmar";
+  $("#prox").innerHTML =
+    `Fecha ${proximo.fecha} - ${escaparHTML(cuando)}<br>` +
+    `<b>${nombre(proximo.local)} vs ${nombre(proximo.visitante)}</b>` +
+    (esTecnico
+      ? `<div class="bar" style="margin-top:8px">
+           <input id="cuando" placeholder="ej: Domingo 1 de Octubre - 11:40 HS" aria-label="Día y horario del partido">
+           <button id="cuandoGo">Guardar</button>
+         </div>`
+      : "");
+
+  if (esTecnico) {
+    const inp = $("#cuando");
+    inp.value = (estado.H && estado.H[proximo.clave]) || "";
+    const guardarHorario = () => {
+      const v = inp.value.trim();
+      estado.H = estado.H || {};
+      if (v) estado.H[proximo.clave] = v; else delete estado.H[proximo.clave];
+      inp.blur();
+      guardar();
+    };
+    $("#cuandoGo").onclick = guardarHorario;
+    inp.onkeydown = e => { if (e.key === "Enter") guardarHorario(); };
+  }
 }
 
 
