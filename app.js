@@ -85,17 +85,24 @@ async function iniciar() {
 }
 
 function estadoInicial() {
-  // ...
+  // Fichas genéricas: los nombres y números reales los carga el técnico
+  // y llegan desde Supabase.
+  const jugadores = {};
+  for (let i = 0; i < 16; i++) {
+    jugadores["p" + i] = { n: String(i + 1), name: i < 11 ? "Titular" : "Suplente" };
+  }
+
   const nuevo = {
     fmt: CONFIG.ESQUEMA_INICIAL,
     P: jugadores,
     S: Array.from({ length: 11 }, (_, i) => ({ p: "p" + i, x: 50, y: 50 })),
     B: ["p11", "p12", "p13", "p14", "p15"],
     R: { ...CONFIG.RESULTADOS_INICIALES },
-    H: {},   // <-- NUEVO: día y hora de cada partido
+    H: {},
     ts: 1,
   };
-  // ...
+  aplicarEsquema(nuevo, CONFIG.ESQUEMA_INICIAL);
+  return nuevo;
 }
 
 function completar(datos) {
