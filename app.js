@@ -677,19 +677,53 @@ function dibujarConvocatoria() {
 }
 
 
-/* ---------- 11. Copa de Oro y calculadora de clasificación ---------- */
+/* ---------- 11. Copa de Oro,Copa de Plata y calculadora de clasificación ---------- */
 
-// Cuadro de la Copa. {z, pos} = puesto de una zona · {g} = ganador de otra llave
+// Cuadro de la Copa de Oro. {z, pos} = puesto de una zona · {g} = ganador de otra llave
 const LLAVES = [
+    // CUARTOS DE FINAL
   { id: "C1", etapa: 0, titulo: "Llave 1 · Cuartos", a: { z: 0, pos: 1 }, b: { z: 1, pos: 4 } },
   { id: "C2", etapa: 0, titulo: "Llave 2 · Cuartos", a: { z: 0, pos: 2 }, b: { z: 1, pos: 3 } },
   { id: "C3", etapa: 0, titulo: "Llave 3 · Cuartos", a: { z: 1, pos: 1 }, b: { z: 0, pos: 4 } },
   { id: "C4", etapa: 0, titulo: "Llave 4 · Cuartos", a: { z: 1, pos: 2 }, b: { z: 0, pos: 3 } },
+  
+  // SEMIFINALES
   { id: "S1", etapa: 1, titulo: "Semifinal 1",       a: { g: "C1" },        b: { g: "C4" } },
   { id: "S2", etapa: 1, titulo: "Semifinal 2",       a: { g: "C3" },        b: { g: "C2" } },
+
+  // FINAL
   { id: "F",  etapa: 2, titulo: "Final",             a: { g: "S1" },        b: { g: "S2" } },
 ];
-const NOMBRE_LLAVE = { C1: "Llave 1", C2: "Llave 2", C3: "Llave 3", C4: "Llave 4", S1: "Semifinal 1", S2: "Semifinal 2" };
+
+// Cuadro de la Copa de Plata. {z, pos} = puesto de una zona · {g} = ganador de otra llave
+const LLAVES_PLATA = [
+  // CUARTOS DE FINAL
+  { id: "PC1", etapa: 0, titulo: "CP1", a: { z: 0, pos: 5 }, b: { z: 0, pos: 8 } },
+  { id: "PC2", etapa: 0, titulo: "CP2", a: { z: 1, pos: 6 }, b: { z: 0, pos: 7 } },
+  { id: "PC3", etapa: 0, titulo: "CP3", a: { z: 0, pos: 6 }, b: { z: 1, pos: 7 } },
+
+  // SEMIFINALES
+  { id: "PS1", etapa: 1, titulo: "SF1", a: { z: 1, pos: 5 }, b: { g: "PC1" } },
+  { id: "PS2", etapa: 1, titulo: "SF2", a: { g: "PC2" }, b: { g: "PC3" } },
+
+  // FINAL
+  { id: "PF", etapa: 2, titulo: "Final", a: { g: "PS1" }, b: { g: "PS2" } },
+];
+
+const NOMBRE_LLAVE = {
+  C1: "Llave 1",
+  C2: "Llave 2",
+  C3: "Llave 3",
+  C4: "Llave 4",
+  S1: "Semifinal 1",
+  S2: "Semifinal 2",
+
+  PC1: "CP1",
+  PC2: "CP2",
+  PC3: "CP3",
+  PS1: "SF1",
+  PS2: "SF2"
+};
 
 // Quién ocupa un lugar del cuadro: un puesto de zona (provisorio hasta que termine) o el ganador de una llave
 function resolverLado(lado, ganadores) {
@@ -704,41 +738,66 @@ function resolverLado(lado, ganadores) {
   return { equipo: ganadores[lado.g] || null, prov: false, etiqueta: `Ganador ${NOMBRE_LLAVE[lado.g]}` };
 }
 
-function calcularCuadro() {
+function calcularCuadroCon(llaves, torneo) {
   const ganadores = {};
-  return LLAVES.map(ll => {
+
+  return llaves.map(ll => {
     const A = resolverLado(ll.a, ganadores);
     const B = resolverLado(ll.b, ganadores);
-    const r = estado.R["copa:" + ll.id];          // [golesA, golesB] o [golesA, golesB, 1|2] si hubo penales
+
+    const r = estado.R[torneo + ":" + ll.id];
+
     let ganador = null;
+
     if (r && A.equipo && B.equipo) {
       if (r[0] > r[1]) ganador = A.equipo;
       else if (r[0] < r[1]) ganador = B.equipo;
       else if (r[2] === 1) ganador = A.equipo;
       else if (r[2] === 2) ganador = B.equipo;
     }
-    if (ganador) ganadores[ll.id] = ganador;
+
+    if (ganador) {
+      ganadores[ll.id] = ganador;
+    }
+
     return { ll, A, B, r, ganador };
   });
 }
 
-function htmlLlave(x) {
+// Copa de Oro
+function calcularCuadro() {
+  return calcularCuadroCon(LLAVES, "copa");
+}
+
+// Copa de Plata
+function calcularCuadroPlata() {
+  return calcularCuadroCon(LLAVES_PLATA, "plata");
+}
+
+function htmlLlave(x, torneo = "copa") {
   const { ll, A, B, r, ganador } = x;
+
+  const datos = `data-c="${ll.id}" data-torneo="${torneo}"`;
+
   const lado = L => L.equipo
     ? `${escaparHTML(nombre(L.equipo))}${L.prov ? '<sup class="prov" title="Posición provisoria">*</sup>' : ""}`
     : `<em class="tbd">${escaparHTML(L.etiqueta)}</em>`;
+
   const listo = A.equipo && B.equipo;
   const empate = listo && r && r[0] === r[1];
-  const juegaYo = A.equipo === CONFIG.MI_EQUIPO || B.equipo === CONFIG.MI_EQUIPO;
+
+  const juegaYo = A.equipo === CONFIG.MI_EQUIPO ||
+                  B.equipo === CONFIG.MI_EQUIPO;
 
   const marcador = esTecnico && listo
-    ? `<input type="number" min="0" inputmode="numeric" data-c="${ll.id}" value="${r ? r[0] : ""}" aria-label="Goles ${escaparHTML(nombre(A.equipo))}"> -
-       <input type="number" min="0" inputmode="numeric" data-c="${ll.id}" value="${r ? r[1] : ""}" aria-label="Goles ${escaparHTML(nombre(B.equipo))}">`
+    ? `<input type="number" min="0" inputmode="numeric" ${datos} value="${r ? r[0] : ""}" aria-label="Goles ${escaparHTML(nombre(A.equipo))}"> -
+       <input type="number" min="0" inputmode="numeric" ${datos} value="${r ? r[1] : ""}" aria-label="Goles ${escaparHTML(nombre(B.equipo))}">`
     : (listo && r ? `${r[0]} - ${r[1]}` : "vs");
 
   let penales = "";
+
   if (empate && esTecnico) {
-    penales = `<select data-c="${ll.id}" aria-label="Ganador por penales">
+    penales = `<select ${datos} aria-label="Ganador por penales">
       <option value="">Empate: ¿quién ganó por penales?</option>
       <option value="1" ${r[2] === 1 ? "selected" : ""}>${escaparHTML(nombre(A.equipo))}</option>
       <option value="2" ${r[2] === 2 ? "selected" : ""}>${escaparHTML(nombre(B.equipo))}</option>
@@ -749,49 +808,138 @@ function htmlLlave(x) {
 
   return `<div class="llave">
     <small>${ll.titulo}</small>
-    <div class="m ${juegaYo ? "me" : ""}"><span>${lado(A)}</span><span class="sc">${marcador}</span><span>${lado(B)}</span></div>
+    <div class="m ${juegaYo ? "me" : ""}">
+      <span>${lado(A)}</span>
+      <span class="sc">${marcador}</span>
+      <span>${lado(B)}</span>
+    </div>
     ${penales}
   </div>`;
 }
 
 function dibujarCopa() {
+  // CALCULAR AMBAS COPAS
   const cuadro = calcularCuadro();
+  const cuadroPlata = calcularCuadroPlata();
+
   const final = cuadro[cuadro.length - 1];
-  const etapas = ["Cuartos de final", "Semifinales", "Final"];
-
-  const bloques = etapas.map((titulo, e) => `
-    <div class="etapa">${titulo}</div>
-    <div class="llaves">${cuadro.filter(x => x.ll.etapa === e).map(htmlLlave).join("")}</div>`).join("");
-
-  const hayProvisorios = cuadro.some(x => x.A.prov || x.B.prov);
+  const finalPlata = cuadroPlata[cuadroPlata.length - 1];
+  const hayProvisoriosOro = cuadro.some(x => x.A.prov || x.B.prov);
+  const hayProvisoriosPlata = cuadroPlata.some(x => x.A.prov || x.B.prov);
 
   $("#tc").innerHTML = `
+
+    <!-- COPA DE ORO -->
     <div class="card">
       <h2>Copa de Oro</h2>
-      ${final.ganador ? `<div class="campeon">🏆 Campeón: ${escaparHTML(nombre(final.ganador))}</div>` : ""}
-      <p class="ayuda">Clasifican los ${CLASIFICAN} primeros de cada zona. ${hayProvisorios ? '<span class="prov">*</span> Cruces provisorios, según la tabla actual.' : "Cruces definidos."}</p>
-      ${bloques}
+
+      ${final.ganador
+        ? `<div class="campeon">🏆 Campeón: ${escaparHTML(nombre(final.ganador))}</div>`
+        : ""}
+
+      <p class="ayuda">
+        Clasifican los ${CLASIFICAN} primeros de cada zona.
+        ${hayProvisoriosOro
+          ? '<span class="prov">*</span> Cruces provisorios, según la tabla actual.'
+          : "Cruces definidos."}
+      </p>
+      ${htmlEtapasCuadro(cuadro, "copa")}
     </div>
-    ${htmlCalculadora()}`;
 
-  // Carga de resultados de la Copa (solo técnico)
-  $("#tc").querySelectorAll("[data-c]").forEach(campo => campo.onchange = () => {
-    const id = campo.dataset.c, clave = "copa:" + id;
-    const [gl, gv] = [...$("#tc").querySelectorAll(`input[data-c="${id}"]`)].map(x => x.value.trim());
 
-    if (gl !== "" && gv !== "") {
-      const a = golesValidos(gl), b = golesValidos(gv);
-      const sel = $(`#tc select[data-c="${id}"]`);
-      const pen = a === b && sel ? Number(sel.value) : 0;
-      estado.R[clave] = pen ? [a, b, pen] : [a, b];
-    } else if (gl === "" && gv === "") {
-      if (!estado.R[clave]) return;
-      delete estado.R[clave];
-    } else {
-      return;   // falta un marcador: se espera sin redibujar
-    }
-    guardar();
+    <!-- COPA DE PLATA -->
+    <div class="card">
+
+      <h2>Copa de Plata</h2>
+
+      ${finalPlata.ganador
+        ? `<div class="campeon">🏆 Campeón Copa de Plata: ${escaparHTML(nombre(finalPlata.ganador))}</div>`
+        : ""}
+
+      <p class="ayuda">
+        Clasifican los puestos 5.º a 8.º de cada zona.
+        ${hayProvisoriosPlata
+          ? '<span class="prov">*</span> Cruces provisorios, según la tabla actual.'
+          : "Cruces definidos."}
+      </p>
+
+      ${htmlEtapasCuadro(cuadroPlata, "plata")}
+
+      <p class="ayuda">
+        El 5.º de Zona B pasa directamente a semifinales como mejor 5.º.
+      </p>
+
+    </div>
+
+    ${htmlCalculadora()}
+  `;
+
+
+  // CARGA DE RESULTADOS DE AMBAS COPAS (solo técnico)
+  $("#tc").querySelectorAll("[data-c]").forEach(campo => {
+
+    campo.onchange = () => {
+
+      const id = campo.dataset.c;
+      const torneo = campo.dataset.torneo || "copa";
+      const clave = torneo + ":" + id;
+
+      const selector = `[data-c="${id}"][data-torneo="${torneo}"]`;
+
+      const [gl, gv] = [
+        ...$("#tc").querySelectorAll(`input${selector}`)
+      ].map(x => x.value.trim());
+
+      if (gl !== "" && gv !== "") {
+
+        const a = golesValidos(gl);
+        const b = golesValidos(gv);
+
+        const sel = $("#tc").querySelector(`select${selector}`);
+
+        const pen = a === b && sel ? Number(sel.value) : 0;
+
+        estado.R[clave] = pen ? [a, b, pen] : [a, b];
+
+      } else if (gl === "" && gv === "") {
+
+        if (!estado.R[clave]) return;
+
+        delete estado.R[clave];
+
+      } else {
+
+        return;
+      }
+
+      guardar();
+    };
+
   });
+}
+
+function htmlEtapasCuadro(cuadro, torneo) {
+  const etapas = [
+    { numero: 0, titulo: "Cuartos de final" },
+    { numero: 1, titulo: "Semifinales" },
+    { numero: 2, titulo: "Final" }
+  ];
+
+  return `
+    <div class="copa-grid">
+      ${etapas.map(etapa => `
+        <div class="copa-columna">
+          <div class="etapa">${etapa.titulo}</div>
+          <div class="llaves">
+            ${cuadro
+              .filter(x => x.ll.etapa === etapa.numero)
+              .map(x => htmlLlave(x, torneo))
+              .join("")}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 

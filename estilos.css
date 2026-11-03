@@ -374,7 +374,7 @@ button.sec.si.on { background: var(--verde); border-color: var(--verde); color: 
 button.sec.no.on { background: var(--carmesi); border-color: var(--carmesi); color: #fff; }
 
 
-/* ---------- Copa de Oro ---------- */
+/* ---------- CUADRO COPA DE ORO ---------- */
 .llaves { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; margin-bottom: 10px; }
 .llave small { display: block; font-weight: 600; opacity: .8; margin-bottom: 2px; }
 .llave select {
@@ -393,6 +393,56 @@ button.sec.no.on { background: var(--carmesi); border-color: var(--carmesi); col
   font: 800 24px 'Barlow Condensed'; text-transform: uppercase;
 }
 
+/* ---------- CUADRO COPA DE PLATA ---------- */
+
+.copa-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.copa-columna {
+  min-width: 0;
+}
+
+/* Alineación de semifinales */
+.copa-columna:nth-child(2) {
+  padding-top: 52px;
+}
+
+/* Alineación de la final */
+.copa-columna:nth-child(3) {
+  padding-top: 84px;
+}
+
+/* Partidos uno debajo del otro */
+.copa-grid .llaves {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+/* Encabezados centrados */
+.copa-grid .etapa {
+  text-align: center;
+}
+
+/* Adaptación a celulares */
+@media (max-width: 850px) {
+
+  .copa-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .copa-columna:nth-child(2),
+  .copa-columna:nth-child(3) {
+    padding-top: 0;
+  }
+
+}
 
 /* ---------- Calculadora de clasificación ---------- */
 .calc .estado { font-weight: 600; margin: 6px 0; }
