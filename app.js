@@ -242,22 +242,68 @@ const juegaMiEquipo = p => p.local === CONFIG.MI_EQUIPO || p.visitante === CONFI
 const nombre = numero => CONFIG.EQUIPOS[numero];
 const zonaMia = () => CONFIG.MI_EQUIPO <= 8 ? 0 : 1;
 
+// Nombre de cada etapa de las copas (coincide con `etapa` 0, 1, 2 de LLAVES / LLAVES_PLATA)
+const NOMBRE_ETAPA = ["Cuartos de final", "Semifinal", "Final"];
+
+// Busca en Copa de Oro y Copa de Plata dónde está mi equipo y cuál es su próximo partido.
+// Devuelve { estado: "juega" | "espera" | "eliminado" | "campeon" | "ninguno", ... }
+function miProximoPartidoCopa() {
+  const torneos = [
+    { torneo: "plata", nombre: "Copa de Plata", cuadro: calcularCuadroPlata() },
+    { torneo: "copa",  nombre: "Copa de Oro",   cuadro: calcularCuadro() },
+  ];
+  for (const t of torneos) {
+    const mias = t.cuadro
+      .filter(x => x.A.equipo === CONFIG.MI_EQUIPO || x.B.equipo === CONFIG.MI_EQUIPO)
+      .sort((a, b) => a.ll.etapa - b.ll.etapa);
+    if (!mias.length) continue;
+
+    for (const x of mias) {
+      const base = {
+        torneo: t.torneo, nombre: t.nombre, etapa: x.ll.etapa, A: x.A, B: x.B,
+        clave: t.torneo + ":" + x.ll.id,
+        titulo: `${t.nombre} · ${NOMBRE_ETAPA[x.ll.etapa]}`,
+      };
+      if (!x.ganador) return { ...base, estado: (x.A.equipo && x.B.equipo) ? "juega" : "espera" };
+      if (x.ganador !== CONFIG.MI_EQUIPO) return { ...base, estado: "eliminado" };
+      if (x.ll.etapa === 2) return { ...base, estado: "campeon" };
+      // ganamos esta llave: seguimos con la siguiente
+    }
+  }
+  return { estado: "ninguno" };
+}
+
 
 function dibujarProximoPartido() {
-  const proximo = listaPartidos().find(p => p.zona === 0 && juegaMiEquipo(p) && !estado.R[p.clave]);
+  const grupo = listaPartidos().find(p => p.zona === 0 && juegaMiEquipo(p) && !estado.R[p.clave]);
 
-  if (!proximo) {
-    $("#prox").innerHTML = `<b>Fase de grupos terminada</b><br>Copa con los mejores de ambas zonas`;
-    return;
+  // Próximo partido: de la fase de grupos o, si ya terminó, de la copa
+  let item = null;
+  if (grupo) {
+    item = { clave: grupo.clave, titulo: `Fecha ${grupo.fecha}`, local: grupo.local, visitante: grupo.visitante };
+  } else {
+    const c = miProximoPartidoCopa();
+    if (c.estado === "juega") {
+      item = { clave: c.clave, titulo: c.titulo, local: c.A.equipo, visitante: c.B.equipo };
+    } else {
+      const textos = {
+        espera:    `<b>${c.titulo}</b><br>Esperando rival`,
+        eliminado: `<b>${c.nombre}</b><br>Terminó el camino en ${NOMBRE_ETAPA[c.etapa]?.toLowerCase()}`,
+        campeon:   `<b>🏆 ¡Campeones de la ${c.nombre}!</b>`,
+        ninguno:   `<b>Fase de grupos terminada</b><br>Copa con los mejores de ambas zonas`,
+      };
+      $("#prox").innerHTML = textos[c.estado];
+      return;
+    }
   }
 
   // Si el técnico está escribiendo, no se redibuja (si no, el refresco cada 5 s le borraría lo que tipea)
   if (document.activeElement && document.activeElement.id === "cuando") return;
 
-  const cuando = (estado.H && estado.H[proximo.clave]) || "Día y horario a confirmar";
+  const cuando = (estado.H && estado.H[item.clave]) || "Día y horario a confirmar";
   $("#prox").innerHTML =
-    `Fecha ${proximo.fecha} - ${escaparHTML(cuando)}<br>` +
-    `<b>${nombre(proximo.local)} vs ${nombre(proximo.visitante)}</b>` +
+    `${escaparHTML(item.titulo)} - ${escaparHTML(cuando)}<br>` +
+    `<b>${nombre(item.local)} vs ${nombre(item.visitante)}</b>` +
     (esTecnico
       ? `<div class="bar" style="margin-top:8px">
            <input id="cuando" placeholder="ej: Domingo 1 de Octubre - 11:40 HS" aria-label="Día y horario del partido">
@@ -267,11 +313,11 @@ function dibujarProximoPartido() {
 
   if (esTecnico) {
     const inp = $("#cuando");
-    inp.value = (estado.H && estado.H[proximo.clave]) || "";
+    inp.value = (estado.H && estado.H[item.clave]) || "";
     const guardarHorario = () => {
       const v = inp.value.trim();
       estado.H = estado.H || {};
-      if (v) estado.H[proximo.clave] = v; else delete estado.H[proximo.clave];
+      if (v) estado.H[item.clave] = v; else delete estado.H[item.clave];
       inp.blur();
       guardar();
     };
@@ -572,9 +618,43 @@ const guardarAsistLocal = () => localStorage.setItem(CLAVE_ASIST, JSON.stringify
 const claveFecha = fecha => "f" + fecha;
 const respuestaDe = (fecha, id) => (asistencia[claveFecha(fecha)] || {})[id] || null;
 
+// Las "fechas" de la convocatoria: 1..N = fase de grupos, N+1.. = etapas de copa (cuartos, semis, final)
+function infoFecha(fecha) {
+  const N = CONFIG.FIXTURE.length;
+  if (fecha <= N) {
+    const p = listaPartidos().find(p => p.fecha === fecha && juegaMiEquipo(p));
+    return {
+      etiqueta: `Fecha ${fecha}`, clave: p ? p.clave : null,
+      partido: p ? { local: p.local, visitante: p.visitante } : null,
+      vacio: "Descansamos esta fecha",
+    };
+  }
+  const etapa = fecha - N - 1;
+  const c = miProximoPartidoCopa();
+  const etiqueta = `Copa · ${NOMBRE_ETAPA[etapa]}`;
+  // Buscamos mi llave de esa etapa en ambas copas
+  for (const [torneo, cuadro] of [["plata", calcularCuadroPlata()], ["copa", calcularCuadro()]]) {
+    const x = cuadro.find(x => x.ll.etapa === etapa &&
+      (x.A.equipo === CONFIG.MI_EQUIPO || x.B.equipo === CONFIG.MI_EQUIPO));
+    if (x) {
+      const listo = x.A.equipo && x.B.equipo;
+      return {
+        etiqueta: `${torneo === "plata" ? "Copa de Plata" : "Copa de Oro"} · ${NOMBRE_ETAPA[etapa]}`,
+        clave: torneo + ":" + x.ll.id,
+        partido: listo ? { local: x.A.equipo, visitante: x.B.equipo } : null,
+        vacio: "Esperando rival",
+      };
+    }
+  }
+  return { etiqueta, clave: null, partido: null, vacio: "Sin partido definido para esta etapa" };
+}
+
 function proximaFecha() {
   const p = listaPartidos().find(p => juegaMiEquipo(p) && !estado.R[p.clave]);
-  return p ? p.fecha : CONFIG.FIXTURE.length;
+  if (p) return p.fecha;
+  const c = miProximoPartidoCopa();
+  if (c.etapa !== undefined) return CONFIG.FIXTURE.length + 1 + c.etapa;
+  return CONFIG.FIXTURE.length;
 }
 
 async function marcarAsistencia(fecha, id, valor) {
@@ -621,7 +701,9 @@ async function traerAsistencia() {
 
 function dibujarConvocatoria() {
   const fecha = fechaConv ?? proximaFecha();
-  const partido = listaPartidos().find(p => p.fecha === fecha && juegaMiEquipo(p));
+  const info = infoFecha(fecha);
+  const partido = info.partido;
+  const cuandoConv = info.clave && estado.H && estado.H[info.clave];
 
   const titulares = new Set(estado.S.map(s => s.p));
   const ids = [...estado.S.map(s => s.p), ...estado.B]
@@ -634,8 +716,11 @@ function dibujarConvocatoria() {
     (r === "v" ? van : r === "n" ? noVan : sinResp).push(estado.P[id].name);
   });
 
-  const opciones = CONFIG.FIXTURE.map((_, i) =>
-    `<option value="${i + 1}" ${i + 1 === fecha ? "selected" : ""}>Fecha ${i + 1}</option>`).join("");
+  const N = CONFIG.FIXTURE.length;
+  const opciones = [
+    ...CONFIG.FIXTURE.map((_, i) => ({ v: i + 1, t: `Fecha ${i + 1}` })),
+    ...NOMBRE_ETAPA.map((e, i) => ({ v: N + 1 + i, t: `Copa · ${e}` })),
+  ].map(o => `<option value="${o.v}" ${o.v === fecha ? "selected" : ""}>${o.t}</option>`).join("");
 
   const aviso = van.length >= MINIMO_JUGADORES
     ? `✅ Equipo completo: ya confirmaron ${van.length}.`
@@ -657,8 +742,8 @@ function dibujarConvocatoria() {
       <h2>Convocatoria</h2>
       <div class="bar"><label for="selFecha">Fecha:</label><select id="selFecha">${opciones}</select></div>
       <div class="prox">${partido
-        ? `Fecha ${fecha}<br><b>${nombre(partido.local)} vs ${nombre(partido.visitante)}</b>`
-        : `Fecha ${fecha}<br><b>Descansamos esta fecha</b>`}</div>
+        ? `${escaparHTML(info.etiqueta)}${cuandoConv ? " - " + escaparHTML(cuandoConv) : ""}<br><b>${nombre(partido.local)} vs ${nombre(partido.visitante)}</b>`
+        : `${escaparHTML(info.etiqueta)}<br><b>${info.vacio}</b>`}</div>
       <div class="res">
         <span class="chip ok">✅ Van: ${van.length}</span>
         <span class="chip no">❌ No van: ${noVan.length}</span>
@@ -1230,10 +1315,19 @@ async function generarImagenFormacion() {
 
   // Próximo partido
   const prox = listaPartidos().find(p => p.zona === 0 && juegaMiEquipo(p) && !estado.R[p.clave]);
+  let textoProx = null;
   if (prox) {
+    textoProx = `FECHA ${prox.fecha}: ${nombre(prox.local)} VS ${nombre(prox.visitante)}`;
+  } else {
+    const c = miProximoPartidoCopa();
+    if (c.estado === "juega") {
+      textoProx = `${c.titulo.toUpperCase()}: ${nombre(c.A.equipo)} VS ${nombre(c.B.equipo)}`;
+    }
+  }
+  if (textoProx) {
     g.textAlign = "center"; g.textBaseline = "middle";
     g.fillStyle = CREMA; g.font = `800 44px ${TIT}`;
-    g.fillText(`FECHA ${prox.fecha}: ${nombre(prox.local)} VS ${nombre(prox.visitante)}`, W / 2, 288);
+    g.fillText(textoProx, W / 2, 288, W - 80);
   }
 
   // Cancha
