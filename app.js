@@ -108,6 +108,9 @@ function estadoInicial() {
 function completar(datos) {
   datos.B = datos.B || [];
   datos.H = datos.H || {};   // <-- NUEVO
+  datos.D = datos.D || {};   // ajustes manuales de puntos { equipo: puntosDescontados }
+  datos.M = datos.M || {};   // motivo de cada ajuste { equipo: "texto" }
+  datos.X = datos.X || {};   // cruces de copa editados a mano { "plata:PS1": { a: equipo, b: equipo, elim: equipo } }
   datos.R = { ...(datos.R || {}), ...CONFIG.RESULTADOS_INICIALES };
   return datos;
 }
@@ -473,6 +476,13 @@ function partidosZona(zona) {
 
 const zonaCompleta = zona => partidosZona(zona).every(m => estado.R[m.clave]);
 
+// Puntos descontados a un equipo: lo cargado a mano tiene prioridad sobre config.js
+function descuentoDe(equipo) {
+  const manual = estado.D && estado.D[equipo];
+  if (manual !== undefined) return manual;
+  return (CONFIG.DESCUENTOS || {})[equipo] || 0;
+}
+
 function calcularTabla(zona) {
   const filas = {};
   equiposZona(zona).forEach(t => {
@@ -492,11 +502,13 @@ function calcularTabla(zona) {
       else              { L.e++; V.e++; L.pts++; V.pts++; }
     });
 
-  // Sanciones: puntos descontados desde config.js
-  Object.entries(CONFIG.DESCUENTOS || {}).forEach(([equipo, puntos]) => {
-    if (filas[equipo]) {
-      filas[equipo].pts -= puntos;
-      filas[equipo].desc = puntos;
+  // Sanciones: puntos descontados (los carga el técnico; si no cargó nada, valen los de config.js)
+  Object.keys(filas).forEach(t => {
+    const d = descuentoDe(Number(t));
+    if (d) {
+      filas[t].pts -= d;
+      filas[t].desc = d;
+      filas[t].motivo = (estado.M && estado.M[t]) || "";
     }
   });
 
@@ -508,14 +520,16 @@ function calcularTabla(zona) {
 function htmlTabla(zona) {
   const filas = calcularTabla(zona).map((x, i) => `
     <tr class="${x.equipo === CONFIG.MI_EQUIPO ? "me" : ""} ${i < CLASIFICAN ? "cl" : ""}">
-      <td>${i + 1}</td><td class="n">${nombre(x.equipo)}</td>
+      <td>${i + 1}</td><td class="n">${nombre(x.equipo)}${x.desc ? '<sup class="prov" title="Puntos descontados">*</sup>' : ""}</td>
       <td>${x.pj}</td><td>${x.g}</td><td>${x.e}</td><td>${x.p}</td>
       <td>${x.gf - x.gc}</td><td><b>${x.pts}</b></td>
     </tr>`).join("");
+  const notas = calcularTabla(zona).filter(x => x.desc).map(x =>
+    `<p class="ayuda" style="margin:4px 0"><span class="prov">*</span> ${escaparHTML(nombre(x.equipo))}: ${x.desc > 0 ? "−" : "+"}${Math.abs(x.desc)} pts${x.motivo ? " (" + escaparHTML(x.motivo) + ")" : ""}</p>`).join("");
   return `<table>
     <tr><th>#</th><th class="n">Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>DG</th><th>Pts</th></tr>
     ${filas}
-  </table>`;
+  </table>${notas}`;
 }
 
 function htmlPartido(m) {
@@ -530,6 +544,25 @@ function htmlPartido(m) {
 }
 
 const golesValidos = v => Math.max(0, parseInt(v, 10) || 0);
+
+// Panel del técnico: sanciones / ajuste manual de puntos por equipo
+function htmlSanciones() {
+  if (!esTecnico) return "";
+  const filaEquipo = t => {
+    const d = descuentoDe(t);
+    return `<div class="bar" style="margin:4px 0;gap:6px">
+      <span style="flex:1;min-width:90px">${escaparHTML(nombre(t))}</span>
+      <input type="number" step="1" inputmode="numeric" data-d="${t}" value="${d || ""}" placeholder="0" style="width:64px" aria-label="Puntos descontados a ${escaparHTML(nombre(t))}">
+      <input type="text" data-dm="${t}" value="${escaparHTML((estado.M && estado.M[t]) || "")}" placeholder="Motivo (opcional)" style="flex:2;min-width:120px" aria-label="Motivo del descuento a ${escaparHTML(nombre(t))}">
+    </div>`;
+  };
+  const zona = z => `<small><b>Zona ${"AB"[z]}</b></small>` + equiposZona(z).map(filaEquipo).join("");
+  return `<div class="card">
+    <h2>Sanciones · ajuste de puntos</h2>
+    <p class="ayuda">Escribí los puntos a <b>descontar</b> (ej: 3). Un número negativo suma puntos. Vacío o 0 = sin ajuste.</p>
+    ${zona(0)}${zona(1)}
+  </div>`;
+}
 
 function dibujarFixture() {
   const partidos = listaPartidos();
@@ -548,6 +581,7 @@ function dibujarFixture() {
       <div class="card tabla"><h2>Posiciones · Zona B</h2>${htmlTabla(1)}</div>
     </div>
     <p class="ayuda">La marca dorada indica los ${CLASIFICAN} primeros de cada zona, que pasan a la Copa de Oro.</p>
+    ${htmlSanciones()}
     ${htmlPublicar()}
     <p>Al terminar las 7 fechas, los mejores de cada zona juegan la Copa.</p>
     <div class="fx">${fechas}</div>`;
@@ -567,6 +601,20 @@ function dibujarFixture() {
       // (Antes se redibujaba acá y se borraba el número recién escrito.)
       return;
     }
+    guardar();
+  });
+
+  // Ajuste manual de puntos y motivo (solo técnico)
+  $("#tp").querySelectorAll("input[data-d]").forEach(campo => campo.onchange = () => {
+    const n = parseInt(campo.value, 10);
+    estado.D = estado.D || {};
+    estado.D[campo.dataset.d] = Number.isFinite(n) ? n : 0;   // se guarda aunque sea 0 (anula lo de config.js)
+    guardar();
+  });
+  $("#tp").querySelectorAll("input[data-dm]").forEach(campo => campo.onchange = () => {
+    estado.M = estado.M || {};
+    const v = campo.value.trim();
+    if (v) estado.M[campo.dataset.dm] = v; else delete estado.M[campo.dataset.dm];
     guardar();
   });
 
@@ -642,7 +690,7 @@ function infoFecha(fecha) {
         etiqueta: `${torneo === "plata" ? "Copa de Plata" : "Copa de Oro"} · ${NOMBRE_ETAPA[etapa]}`,
         clave: torneo + ":" + x.ll.id,
         partido: listo ? { local: x.A.equipo, visitante: x.B.equipo } : null,
-        vacio: "Esperando rival",
+        vacio: x.ll.bye ? "Pasa directo a semifinales" : "Esperando rival",
       };
     }
   }
@@ -783,13 +831,14 @@ const LLAVES = [
 // Cuadro de la Copa de Plata. {z, pos} = puesto de una zona · {g} = ganador de otra llave
 const LLAVES_PLATA = [
   // CUARTOS DE FINAL
-  { id: "PC1", etapa: 0, titulo: "CP1", a: { z: 0, pos: 5 }, b: { z: 0, pos: 8 } },
+  // PC1: el 5º de Zona B pasa directo (su rival, `elimNombre`, quedó eliminado; el técnico puede cambiarlo)
+  { id: "PC1", etapa: 0, titulo: "CP1", a: { z: 1, pos: 5 }, b: null, bye: true, elimNombre: "Timba" },
   { id: "PC2", etapa: 0, titulo: "CP2", a: { z: 1, pos: 6 }, b: { z: 0, pos: 7 } },
   { id: "PC3", etapa: 0, titulo: "CP3", a: { z: 0, pos: 6 }, b: { z: 1, pos: 7 } },
 
-  // SEMIFINALES
-  { id: "PS1", etapa: 1, titulo: "SF1", a: { z: 1, pos: 5 }, b: { g: "PC1" } },
-  { id: "PS2", etapa: 1, titulo: "SF2", a: { g: "PC2" }, b: { g: "PC3" } },
+  // SEMIFINALES: el 5º de Zona A (mejor 5º según la Liga) entra directo
+  { id: "PS1", etapa: 1, titulo: "SF1", a: { z: 0, pos: 5 }, b: { g: "PC2" } },
+  { id: "PS2", etapa: 1, titulo: "SF2", a: { g: "PC1" },      b: { g: "PC3" } },
 
   // FINAL
   { id: "PF", etapa: 2, titulo: "Final", a: { g: "PS1" }, b: { g: "PS2" } },
@@ -818,32 +867,54 @@ function resolverLado(lado, ganadores) {
       equipo: fila ? fila.equipo : null,
       prov: !zonaCompleta(lado.z),
       etiqueta: `${lado.pos}º Zona ${"AB"[lado.z]}`,
+      corto: `${lado.pos}°${"AB"[lado.z]}`,
     };
   }
-  return { equipo: ganadores[lado.g] || null, prov: false, etiqueta: `Ganador ${NOMBRE_LLAVE[lado.g]}` };
+  return { equipo: ganadores[lado.g] || null, prov: false, etiqueta: `Ganador ${NOMBRE_LLAVE[lado.g]}`, corto: "" };
+}
+
+// Número de equipo por parte de su nombre (para valores por defecto del cuadro)
+function equipoPorNombre(texto) {
+  if (!texto) return null;
+  for (let n = 1; n <= 16; n++) {
+    if (nombre(n) && String(nombre(n)).toLowerCase().includes(texto.toLowerCase())) return n;
+  }
+  return null;
 }
 
 function calcularCuadroCon(llaves, torneo) {
   const ganadores = {};
 
   return llaves.map(ll => {
-    const A = resolverLado(ll.a, ganadores);
-    const B = resolverLado(ll.b, ganadores);
+    const clave = torneo + ":" + ll.id;
+    const ov = (estado.X && estado.X[clave]) || {};   // cruce editado a mano por el técnico
 
-    const r = estado.R[torneo + ":" + ll.id];
+    const aplicar = (nat, forzado) => forzado
+      ? { ...nat, equipo: forzado, prov: false, manual: true, nat: nat.equipo }
+      : { ...nat, nat: nat.equipo };
 
+    const A = aplicar(resolverLado(ll.a, ganadores), ov.a);
+    let B;
+    if (ll.bye) {
+      const elim = ov.elim || equipoPorNombre(ll.elimNombre);
+      B = { equipo: null, prov: false, etiqueta: "Sin rival", elim: elim || null };
+    } else {
+      B = aplicar(resolverLado(ll.b, ganadores), ov.b);
+    }
+
+    const r = estado.R[clave];
     let ganador = null;
 
-    if (r && A.equipo && B.equipo) {
+    if (ll.bye) {
+      ganador = A.equipo;                       // pasa directo
+    } else if (r && A.equipo && B.equipo) {
       if (r[0] > r[1]) ganador = A.equipo;
       else if (r[0] < r[1]) ganador = B.equipo;
       else if (r[2] === 1) ganador = A.equipo;
       else if (r[2] === 2) ganador = B.equipo;
     }
 
-    if (ganador) {
-      ganadores[ll.id] = ganador;
-    }
+    if (ganador) ganadores[ll.id] = ganador;
 
     return { ll, A, B, r, ganador };
   });
@@ -859,28 +930,101 @@ function calcularCuadroPlata() {
   return calcularCuadroCon(LLAVES_PLATA, "plata");
 }
 
+// Cruce que el técnico está editando (se mantiene abierto al redibujar)
+let llaveEditando = null;
+
+// Estilos del cuadro de copas (se agregan acá para no tocar el CSS)
+(function () {
+  const st = document.createElement("style");
+  st.textContent = `
+    .llave{border:1px solid rgba(128,128,128,.35);border-radius:8px;overflow:hidden;margin:10px 0}
+    .llave .lh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;font-size:.78em;font-weight:700;opacity:.8;background:rgba(128,128,128,.08)}
+    .llave .eq{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid rgba(128,128,128,.25)}
+    .llave .eq.w{background:rgba(46,160,90,.14);font-weight:700}
+    .llave .eq.l{opacity:.55}
+    .llave .eq.me{box-shadow:inset 3px 0 0 #d4a017}
+    .llave .eq-p{width:2.2em;font-size:.75em;font-weight:700;opacity:.7}
+    .llave .eq-g{margin-left:auto;font-weight:800;font-size:1.15em}
+    .llave .eq-g input{width:52px;text-align:center}
+    .llave .editor-llave{padding:8px 10px;border-top:1px dashed rgba(128,128,128,.5);display:grid;gap:6px;font-size:.9em}
+    .llave .editor-llave label{display:grid;gap:2px}
+    .pill{display:inline-block;margin-left:8px;padding:3px 10px;border-radius:6px;background:#d9f7e4;color:#0d5c2e;font-size:.6em;font-weight:800;letter-spacing:.04em;text-transform:uppercase;vertical-align:middle}
+    .nota-directo{padding:10px 12px;border:1px dashed rgba(128,128,128,.5);border-radius:8px;font-size:.9em;text-align:center}
+  `;
+  document.head.appendChild(st);
+})();
+
+function htmlEditorLlave(x, torneo) {
+  const { ll, A, B } = x;
+  const clave = torneo + ":" + ll.id;
+  const ov = (estado.X && estado.X[clave]) || {};
+  const equipos = [];
+  for (let n = 1; n <= 16; n++) if (n !== LIBRE && nombre(n)) equipos.push(n);
+
+  const selector = (lado, titulo, actual, auto) => `
+    <label>${titulo}
+      <select data-xk="${clave}" data-xl="${lado}">
+        <option value="">Automático${auto ? " (" + escaparHTML(auto) + ")" : ""}</option>
+        ${equipos.map(n => `<option value="${n}" ${Number(actual) === n ? "selected" : ""}>${escaparHTML(nombre(n))}</option>`).join("")}
+      </select>
+    </label>`;
+
+  const autoNombre = L => L.nat ? nombre(L.nat) : L.etiqueta;
+  return `<div class="editor-llave">
+    ${selector("a", "Equipo 1", ov.a, autoNombre(A))}
+    ${ll.bye
+      ? selector("elim", "Rival eliminado", ov.elim, B.elim ? nombre(B.elim) : "")
+      : selector("b", "Equipo 2", ov.b, autoNombre(B))}
+    <label>Día, hora y sede
+      <input type="text" data-xh="${clave}" value="${escaparHTML((estado.H && estado.H[clave]) || "")}" placeholder="ej: Dom 29/11 · 11:20 · Rugby">
+    </label>
+    <button type="button" class="sec" data-xreset="${clave}">Volver a automático</button>
+  </div>`;
+}
+
 function htmlLlave(x, torneo = "copa") {
   const { ll, A, B, r, ganador } = x;
-
+  const clave = torneo + ":" + ll.id;
   const datos = `data-c="${ll.id}" data-torneo="${torneo}"`;
-
-  const lado = L => L.equipo
-    ? `${escaparHTML(nombre(L.equipo))}${L.prov ? '<sup class="prov" title="Posición provisoria">*</sup>' : ""}`
-    : `<em class="tbd">${escaparHTML(L.etiqueta)}</em>`;
 
   const listo = A.equipo && B.equipo;
   const empate = listo && r && r[0] === r[1];
+  const jugado = ll.bye ? !!A.equipo : !!ganador;
+  const horario = estado.H && estado.H[clave];
+  const prov = A.prov || B.prov;
 
-  const juegaYo = A.equipo === CONFIG.MI_EQUIPO ||
-                  B.equipo === CONFIG.MI_EQUIPO;
+  const etiquetaEstado = ll.bye ? "Pasa directo"
+    : jugado ? `Final${prov ? " · prov." : ""}`
+    : (horario ? escaparHTML(horario) : "A jugar");
 
-  const marcador = esTecnico && listo
-    ? `<input type="number" min="0" inputmode="numeric" ${datos} value="${r ? r[0] : ""}" aria-label="Goles ${escaparHTML(nombre(A.equipo))}"> -
-       <input type="number" min="0" inputmode="numeric" ${datos} value="${r ? r[1] : ""}" aria-label="Goles ${escaparHTML(nombre(B.equipo))}">`
-    : (listo && r ? `${r[0]} - ${r[1]}` : "vs");
+  const fila = (L, idx) => {
+    const eq = L.equipo;
+    const cls = ["eq",
+      eq && ganador === eq && !ll.bye ? "w" : "",
+      eq && ganador && ganador !== eq ? "l" : "",
+      eq && eq === CONFIG.MI_EQUIPO ? "me" : ""].join(" ");
+
+    let nom;
+    if (eq) {
+      nom = escaparHTML(nombre(eq)) +
+        (L.prov ? '<sup class="prov" title="Posición provisoria">*</sup>' : "") +
+        (L.manual ? '<sup title="Cruce definido a mano"> ✎</sup>' : "");
+    } else if (L.elim) {
+      nom = `<em class="tbd">${escaparHTML(nombre(L.elim))} · eliminado</em>`;
+    } else {
+      nom = `<em class="tbd">${escaparHTML(L.etiqueta)}</em>`;
+    }
+
+    let goles = "";
+    if (!ll.bye && listo) {
+      goles = esTecnico
+        ? `<input type="number" min="0" inputmode="numeric" ${datos} value="${r ? r[idx] : ""}" aria-label="Goles ${escaparHTML(nombre(eq))}">`
+        : (r ? r[idx] : "");
+    }
+    return `<div class="${cls}"><span class="eq-p">${L.corto || ""}</span><span class="eq-nom">${nom}</span><span class="eq-g">${goles}</span></div>`;
+  };
 
   let penales = "";
-
   if (empate && esTecnico) {
     penales = `<select ${datos} aria-label="Ganador por penales">
       <option value="">Empate: ¿quién ganó por penales?</option>
@@ -888,17 +1032,19 @@ function htmlLlave(x, torneo = "copa") {
       <option value="2" ${r[2] === 2 ? "selected" : ""}>${escaparHTML(nombre(B.equipo))}</option>
     </select>`;
   } else if (empate && ganador) {
-    penales = `<div class="pen">Definió por penales: <b>${escaparHTML(nombre(ganador))}</b></div>`;
+    penales = `<div class="pen" style="padding:6px 10px">Definió por penales: <b>${escaparHTML(nombre(ganador))}</b></div>`;
   }
 
+  const lapiz = esTecnico
+    ? `<button type="button" class="sec" data-edit="${clave}" title="Editar cruce" aria-label="Editar cruce ${escaparHTML(ll.titulo)}" style="padding:0 8px">✎</button>`
+    : "";
+
   return `<div class="llave">
-    <small>${ll.titulo}</small>
-    <div class="m ${juegaYo ? "me" : ""}">
-      <span>${lado(A)}</span>
-      <span class="sc">${marcador}</span>
-      <span>${lado(B)}</span>
-    </div>
+    <div class="lh"><span>${escaparHTML(ll.titulo)}</span><span>${etiquetaEstado} ${lapiz}</span></div>
+    ${fila(A, 0)}
+    ${fila(B, 1)}
     ${penales}
+    ${esTecnico && llaveEditando === clave ? htmlEditorLlave(x, torneo) : ""}
   </div>`;
 }
 
@@ -911,12 +1057,16 @@ function dibujarCopa() {
   const finalPlata = cuadroPlata[cuadroPlata.length - 1];
   const hayProvisoriosOro = cuadro.some(x => x.A.prov || x.B.prov);
   const hayProvisoriosPlata = cuadroPlata.some(x => x.A.prov || x.B.prov);
+  const sf1 = cuadroPlata.find(x => x.ll.id === "PS1");
+  const notaDirecto = sf1 && sf1.A.equipo
+    ? `<div class="nota-directo"><b>${escaparHTML(nombre(sf1.A.equipo))}</b> (${sf1.A.corto || "5°"}) pasa directo a semifinales como mejor 5° (según la Liga).</div>`
+    : "";
 
   $("#tc").innerHTML = `
 
     <!-- COPA DE ORO -->
     <div class="card">
-      <h2>Copa de Oro</h2>
+      <h2>Copa de Oro <span class="pill">Clausura 2026 · ${hayProvisoriosOro ? "Provisorio" : "Confirmado"}</span></h2>
 
       ${final.ganador
         ? `<div class="campeon">🏆 Campeón: ${escaparHTML(nombre(final.ganador))}</div>`
@@ -935,7 +1085,7 @@ function dibujarCopa() {
     <!-- COPA DE PLATA -->
     <div class="card">
 
-      <h2>Copa de Plata</h2>
+      <h2>Copa de Plata <span class="pill">Clausura 2026 · ${hayProvisoriosPlata ? "Provisorio" : "Confirmado"}</span></h2>
 
       ${finalPlata.ganador
         ? `<div class="campeon">🏆 Campeón Copa de Plata: ${escaparHTML(nombre(finalPlata.ganador))}</div>`
@@ -950,15 +1100,38 @@ function dibujarCopa() {
 
       ${htmlEtapasCuadro(cuadroPlata, "plata")}
 
-      <p class="ayuda">
-        El 5.º de Zona B pasa directamente a semifinales como mejor 5.º.
-      </p>
+      ${notaDirecto}
 
     </div>
 
     ${htmlCalculadora()}
   `;
 
+
+  // EDICIÓN MANUAL DE CRUCES (solo técnico)
+  $("#tc").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
+    llaveEditando = llaveEditando === b.dataset.edit ? null : b.dataset.edit;
+    dibujarCopa();
+  });
+  $("#tc").querySelectorAll("select[data-xl]").forEach(s => s.onchange = () => {
+    const k = s.dataset.xk;
+    estado.X = estado.X || {};
+    estado.X[k] = estado.X[k] || {};
+    const v = Number(s.value);
+    if (v) estado.X[k][s.dataset.xl] = v; else delete estado.X[k][s.dataset.xl];
+    if (!Object.keys(estado.X[k]).length) delete estado.X[k];
+    guardar();
+  });
+  $("#tc").querySelectorAll("input[data-xh]").forEach(i => i.onchange = () => {
+    const k = i.dataset.xh, v = i.value.trim();
+    estado.H = estado.H || {};
+    if (v) estado.H[k] = v; else delete estado.H[k];
+    guardar();
+  });
+  $("#tc").querySelectorAll("[data-xreset]").forEach(b => b.onclick = () => {
+    if (estado.X) delete estado.X[b.dataset.xreset];
+    guardar();
+  });
 
   // CARGA DE RESULTADOS DE AMBAS COPAS (solo técnico)
   $("#tc").querySelectorAll("[data-c]").forEach(campo => {
